@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #050712;
+  --panel: #0a1020;
+  --panel-strong: #0d1528;
+  --line: rgba(137, 159, 190, 0.16);
+  --muted: #8491a8;
+  --text: #f5f7fb;
+  --green: #00e5a8;
+  --cyan: #22d3ee;
+  --violet: #8b5cf6;
+  --rose: #f43f5e;
+  --amber: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(180deg, rgba(8, 17, 34, 0.96), rgba(5, 7, 18, 1) 48%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.dashboard-shell {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr) 376px;
+  min-height: 100vh;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(14, 22, 43, 0.92), rgba(7, 13, 26, 0.98));
+  border-radius: 8px;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.mini-panel {
+  border: 1px solid rgba(137, 159, 190, 0.12);
+  background: rgba(10, 16, 32, 0.78);
+  border-radius: 8px;
+}
+
+.glass-line {
+  border-color: rgba(137, 159, 190, 0.14);
+}
+
+.score-ring {
+  background:
+    radial-gradient(circle at center, #0a1020 0 52%, transparent 53%),
+    conic-gradient(var(--green) 0 73%, rgba(34, 211, 238, 0.18) 73% 100%);
+}
+
+.donut-ring {
+  background:
+    radial-gradient(circle at center, #0a1020 0 55%, transparent 56%),
+    conic-gradient(#8b5cf6 0 42%, #06b6d4 42% 74%, #00e5a8 74% 100%);
+}
+
+.spark-line {
+  filter: drop-shadow(0 0 8px rgba(0, 229, 168, 0.35));
+}
+
+.chart-grid {
+  background-image:
+    linear-gradient(rgba(137, 159, 190, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(137, 159, 190, 0.08) 1px, transparent 1px);
+  background-size: 100% 64px, 64px 100%;
+}
+
+.chart-mask {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-shell {
+    grid-template-columns: 236px minmax(0, 1fr);
+  }
+
+  .right-rail {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 1024px) {
+  .dashboard-shell {
+    display: block;
+  }
+}

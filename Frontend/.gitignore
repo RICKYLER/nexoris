@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+next-dev.*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# Hosting and tooling
+.vercel/
+.turbo/

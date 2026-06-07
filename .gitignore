@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+next-dev.*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# Package manager cache
+.npm/
+.pnpm-store/
+
+# Hosting and tooling
+.vercel/
+.turbo/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Root-level accidental lockfile; keep Frontend/package-lock.json tracked.
+/package-lock.json
