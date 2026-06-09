@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 
 type BiasTone = "bullish" | "bearish" | "neutral";
+type StrategyCode = "EWT_FIB" | "CTI" | "TRENDLINE_RETEST" | "SR_BREAKOUT";
 
 type Candle = {
+  time: number;
   high: number;
   low: number;
   close: number;
@@ -23,6 +25,32 @@ type AiPlaybookItem = {
   iconTone: string;
 };
 
+type AiFibLevel = {
+  label: string;
+  value: string;
+  ratio: number;
+  width: string;
+  tone: string;
+};
+
+type AiTrendOverlay = {
+  direction: "ascending" | "descending" | "sideways";
+  start: string;
+  end: string;
+  slope: string;
+  strength: number;
+};
+
+type AiStrategyRecommendation = {
+  code: StrategyCode;
+  name: string;
+  confidence: number;
+  reason: string;
+  trigger: string;
+  invalidation: string;
+  iconTone: string;
+};
+
 type ChartAiAnalysis = {
   symbol: string;
   pair: string;
@@ -36,6 +64,9 @@ type ChartAiAnalysis = {
   momentumMeta: string;
   note: string;
   levels: AiLevel[];
+  fibLevels: AiFibLevel[];
+  trendOverlay: AiTrendOverlay;
+  strategy: AiStrategyRecommendation;
   playbook: AiPlaybookItem[];
 };
 
@@ -112,6 +143,7 @@ async function fetchBinanceCandles(pair: string, interval: string) {
   }
 
   return rows.map((row) => ({
+    time: Number(row[0]),
     high: Number(row[2]),
     low: Number(row[3]),
     close: Number(row[4]),
@@ -160,6 +192,19 @@ function buildTechnicalAnalysis({
     : biasTone === "bearish"
       ? `Invalid above ${resistance}`
       : `Breakout needed above ${resistance}`;
+  const fibLevels = buildFibLevels(candles, biasTone);
+  const trendOverlay = buildTrendOverlay(candles, biasTone);
+  const strategy = chooseStrategy({
+    biasTone,
+    change10,
+    confidence,
+    pair,
+    resistance,
+    rsi,
+    support,
+    trendOverlay,
+    volumeRatio,
+  });
 
   return {
     symbol,
@@ -174,7 +219,10 @@ function buildTechnicalAnalysis({
     momentumMeta,
     note: buildFallbackNote({ pair, biasTone, resistance, support, rsi, change10 }),
     levels,
-    playbook: buildPlaybook({ biasTone, resistance, support, pair }),
+    fibLevels,
+    trendOverlay,
+    strategy,
+    playbook: buildPlaybook({ biasTone, resistance, support, pair, strategy }),
   };
 }
 
@@ -198,6 +246,146 @@ function buildLevels(candles: Candle[]) {
     { label: "Sup 1", value: formatPrice(sup1), width: width(sup1), tone: "text-cyan-300", bar: "bg-cyan-400" },
     { label: "Sup 2", value: formatPrice(sup2), width: width(sup2), tone: "text-cyan-300", bar: "bg-cyan-400" },
   ];
+}
+
+function buildFibLevels(candles: Candle[], biasTone: BiasTone): AiFibLevel[] {
+  const swing = getSwingRange(candles);
+  const ratios = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+  const isBullishSwing = biasTone === "bullish" || (biasTone === "neutral" && swing.lowIndex < swing.highIndex);
+  const low = swing.low;
+  const high = swing.high;
+  const range = high - low || high * 0.01 || 1;
+  const width = (price: number) => `${Math.round(((price - low) / range) * 76 + 12)}%`;
+
+  return ratios.map((ratio) => {
+    const price = isBullishSwing ? high - range * ratio : low + range * ratio;
+    const isGoldenPocket = ratio === 0.5 || ratio === 0.618;
+
+    return {
+      label: `${Math.round(ratio * 1000) / 10}%`,
+      value: formatPrice(price),
+      ratio,
+      width: width(price),
+      tone: isGoldenPocket ? "text-violet-300" : ratio < 0.5 ? "text-cyan-300" : "text-amber-300",
+    };
+  });
+}
+
+function buildTrendOverlay(candles: Candle[], biasTone: BiasTone): AiTrendOverlay {
+  const recent = candles.slice(-48);
+  const start = recent[0];
+  const end = recent[recent.length - 1];
+  const slopeValue = ((end.close - start.close) / start.close) * 100;
+  const direction = Math.abs(slopeValue) < 0.35
+    ? "sideways"
+    : slopeValue > 0
+      ? "ascending"
+      : "descending";
+  const biasBonus = (biasTone === "bullish" && direction === "ascending") || (biasTone === "bearish" && direction === "descending") ? 10 : 0;
+  const strength = Math.min(94, Math.max(44, Math.round(Math.abs(slopeValue) * 8 + biasBonus + 50)));
+
+  return {
+    direction,
+    start: formatPrice(start.close),
+    end: formatPrice(end.close),
+    slope: `${slopeValue >= 0 ? "+" : ""}${slopeValue.toFixed(2)}%`,
+    strength,
+  };
+}
+
+function chooseStrategy({
+  biasTone,
+  change10,
+  confidence,
+  pair,
+  resistance,
+  rsi,
+  support,
+  trendOverlay,
+  volumeRatio,
+}: {
+  biasTone: BiasTone;
+  change10: number;
+  confidence: number;
+  pair: string;
+  resistance: string;
+  rsi: number;
+  support: string;
+  trendOverlay: AiTrendOverlay;
+  volumeRatio: number;
+}): AiStrategyRecommendation {
+  const hasDirectionalTrend = trendOverlay.direction !== "sideways";
+  const hasExpansion = Math.abs(change10) >= 1.2 && volumeRatio >= 1.03;
+  const isBalanced = Math.abs(change10) < 0.75 && rsi >= 43 && rsi <= 57;
+
+  if (hasDirectionalTrend && hasExpansion && confidence >= 70) {
+    return {
+      code: "EWT_FIB",
+      name: "EWT + Fibonacci",
+      confidence: Math.min(94, confidence + 3),
+      reason: `${pair} has directional expansion, ${trendOverlay.direction} structure, and enough volume for wave-and-retracement planning.`,
+      trigger: biasTone === "bearish" ? `Sell continuation below ${support}` : `Buy pullback reaction above ${support}`,
+      invalidation: biasTone === "bearish" ? `Invalid above ${resistance}` : `Invalid below ${support}`,
+      iconTone: "bg-violet-300/10 text-violet-200",
+    };
+  }
+
+  if (isBalanced) {
+    return {
+      code: "CTI",
+      name: "CTI Rotation",
+      confidence: Math.max(60, Math.min(88, confidence - 2)),
+      reason: `${pair} is balanced with RSI near ${Math.round(rsi)} and low 10-candle displacement, so rotation signals fit better than wave chasing.`,
+      trigger: `Fade extremes only near ${support} or ${resistance}`,
+      invalidation: `Stop using CTI after a strong close outside the range`,
+      iconTone: "bg-cyan-300/10 text-cyan-200",
+    };
+  }
+
+  if (hasDirectionalTrend) {
+    return {
+      code: "TRENDLINE_RETEST",
+      name: "Trendline Retest",
+      confidence: Math.max(62, Math.min(90, confidence)),
+      reason: `${pair} is still respecting a ${trendOverlay.direction} slope, but expansion is not strong enough for a full EWT read.`,
+      trigger: biasTone === "bearish" ? `Reject trendline near ${resistance}` : `Hold trendline above ${support}`,
+      invalidation: biasTone === "bearish" ? `Clean close above ${resistance}` : `Clean close below ${support}`,
+      iconTone: "bg-amber-300/10 text-amber-200",
+    };
+  }
+
+  return {
+    code: "SR_BREAKOUT",
+    name: "Support/Resistance Breakout",
+    confidence: Math.max(58, Math.min(84, confidence - 4)),
+    reason: `${pair} is range-bound, so the cleanest edge is waiting for confirmed support or resistance failure.`,
+    trigger: `Break and close beyond ${support} or ${resistance}`,
+    invalidation: `Failed breakout back inside the range`,
+    iconTone: "bg-slate-300/10 text-slate-200",
+  };
+}
+
+function getSwingRange(candles: Candle[]) {
+  const recent = candles.slice(-96);
+  const offset = candles.length - recent.length;
+  let high = recent[0].high;
+  let low = recent[0].low;
+  let highIndex = offset;
+  let lowIndex = offset;
+
+  recent.forEach((candle, index) => {
+    if (candle.high > high) {
+      high = candle.high;
+      highIndex = offset + index;
+    }
+
+    if (candle.low < low) {
+      low = candle.low;
+      lowIndex = offset + index;
+    }
+  });
+
+  return { high, highIndex, low, lowIndex };
 }
 
 function calculateRsi(closes: number[], period: number) {
@@ -270,32 +458,34 @@ function buildPlaybook({
   resistance,
   support,
   pair,
+  strategy,
 }: {
   biasTone: BiasTone;
   resistance: string;
   support: string;
   pair: string;
+  strategy: AiStrategyRecommendation;
 }) {
   if (biasTone === "bullish") {
     return [
+      { label: strategy.name, value: strategy.trigger, iconTone: strategy.iconTone },
       { label: "Bullish Trigger", value: `Hold ${support}, then break ${resistance} with volume for continuation.`, iconTone: "bg-emerald-300/10 text-emerald-200" },
       { label: "Bearish Invalidation", value: `A close below ${support} breaks the current recovery structure.`, iconTone: "bg-rose-300/10 text-rose-200" },
-      { label: "Risk Zone", value: `Avoid chasing ${pair} directly under ${resistance}.`, iconTone: "bg-amber-300/10 text-amber-200" },
     ];
   }
 
   if (biasTone === "bearish") {
     return [
+      { label: strategy.name, value: strategy.trigger, iconTone: strategy.iconTone },
       { label: "Bearish Trigger", value: `Reject near ${resistance}, then watch for continuation into ${support}.`, iconTone: "bg-rose-300/10 text-rose-200" },
       { label: "Bullish Invalidation", value: `A close above ${resistance} weakens the bearish structure.`, iconTone: "bg-emerald-300/10 text-emerald-200" },
-      { label: "Risk Zone", value: `Avoid new entries while ${pair} chops between support and resistance.`, iconTone: "bg-amber-300/10 text-amber-200" },
     ];
   }
 
   return [
+    { label: strategy.name, value: strategy.trigger, iconTone: strategy.iconTone },
     { label: "Confirmation Needed", value: `Wait for a candle close beyond ${resistance} or below ${support}.`, iconTone: "bg-amber-300/10 text-amber-200" },
     { label: "Upside Trigger", value: `A volume-backed reclaim of ${resistance} turns the setup bullish.`, iconTone: "bg-emerald-300/10 text-emerald-200" },
-    { label: "Downside Trigger", value: `Losing ${support} turns the setup bearish.`, iconTone: "bg-rose-300/10 text-rose-200" },
   ];
 }
 
@@ -336,6 +526,9 @@ async function explainWithOllama(analysis: ChartAiAnalysis, candles: Candle[]) {
               trendline: analysis.trendline,
               invalidation: analysis.invalidation,
               momentum: analysis.momentumMeta,
+              strategy: analysis.strategy.name,
+              strategy_reason: analysis.strategy.reason,
+              fib_levels: analysis.fibLevels.map((level) => ({ label: level.label, value: level.value })),
               levels: analysis.levels.map((level) => ({ label: level.label, value: level.value })),
             }),
           },

@@ -7,6 +7,7 @@ import { BrainCircuit, Gauge, LineChart, Maximize2, Minus, Search, Shield, Trend
 type TradingTab = "positions" | "orders" | "order-history" | "balance-history" | "trading-journal";
 type BiasTone = "bullish" | "bearish" | "neutral";
 type AnalysisStatus = "loading" | "ready" | "error";
+type StrategyCode = "EWT_FIB" | "CTI" | "TRENDLINE_RETEST" | "SR_BREAKOUT";
 
 type PositionRow = {
   id: string;
@@ -43,6 +44,32 @@ type AiPlaybookItem = {
   iconTone: string;
 };
 
+type AiFibLevel = {
+  label: string;
+  value: string;
+  ratio: number;
+  width: string;
+  tone: string;
+};
+
+type AiTrendOverlay = {
+  direction: "ascending" | "descending" | "sideways";
+  start: string;
+  end: string;
+  slope: string;
+  strength: number;
+};
+
+type AiStrategyRecommendation = {
+  code: StrategyCode;
+  name: string;
+  confidence: number;
+  reason: string;
+  trigger: string;
+  invalidation: string;
+  iconTone: string;
+};
+
 type ChartAiAnalysis = {
   symbol: string;
   pair: string;
@@ -56,8 +83,14 @@ type ChartAiAnalysis = {
   momentumMeta: string;
   note: string;
   levels: AiLevel[];
+  fibLevels: AiFibLevel[];
+  trendOverlay: AiTrendOverlay;
+  strategy: AiStrategyRecommendation;
   playbook: AiPlaybookItem[];
 };
+
+type ChartAiPreset = Omit<ChartAiAnalysis, "symbol" | "fibLevels" | "trendOverlay" | "strategy"> &
+  Partial<Pick<ChartAiAnalysis, "fibLevels" | "trendOverlay" | "strategy">>;
 
 const defaultTradingViewSymbol = "BINANCE:ETHUSDT";
 
@@ -218,7 +251,7 @@ function AiChartIntelligence({
       <ChartAiSymbolControl activeSymbol={analysis.symbol} analysisStatus={analysisStatus} onSymbolChange={onSymbolChange} />
 
       <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <AiSignalCard
             icon={analysis.biasTone === "bullish" ? TrendingUp : TrendingDown}
             label="AI Bias"
@@ -239,6 +272,13 @@ function AiChartIntelligence({
             value={analysis.momentum}
             meta={analysis.momentumMeta}
             tone="cyan"
+          />
+          <AiSignalCard
+            icon={BrainCircuit}
+            label="Best Strategy"
+            value={analysis.strategy.name}
+            meta={`${analysis.strategy.confidence}% | ${analysis.strategy.code.replace(/_/g, " ")}`}
+            tone="violet"
           />
         </div>
 
@@ -276,6 +316,8 @@ function AiChartIntelligence({
           </div>
         </div>
       </div>
+
+      <AiStrategyOverlay analysis={analysis} />
 
       <div className="grid gap-3 border-t glass-line px-4 pb-4 pt-0 md:grid-cols-3">
         {analysis.playbook.map((item) => (
@@ -361,7 +403,7 @@ function AiSignalCard({
   label: string;
   value: string;
   meta: string;
-  tone: "green" | "rose" | "amber" | "cyan";
+  tone: "green" | "rose" | "amber" | "cyan" | "violet";
 }) {
   const Icon = icon;
   const tones = {
@@ -369,6 +411,7 @@ function AiSignalCard({
     rose: "border-rose-300/20 bg-rose-300/10 text-rose-200",
     amber: "border-amber-300/20 bg-amber-300/10 text-amber-200",
     cyan: "border-cyan-300/20 bg-cyan-300/10 text-cyan-200",
+    violet: "border-violet-300/20 bg-violet-300/10 text-violet-200",
   };
 
   return (
@@ -385,14 +428,90 @@ function AiSignalCard({
   );
 }
 
+function AiStrategyOverlay({ analysis }: { analysis: ChartAiAnalysis }) {
+  const focusFibLevels = analysis.fibLevels.filter((level) => [0.382, 0.5, 0.618, 0.786].includes(level.ratio));
+  const resistance = analysis.levels.find((level) => level.label === "Res 1")?.value ?? "Auto";
+  const support = analysis.levels.find((level) => level.label === "Sup 1")?.value ?? "Auto";
+
+  return (
+    <section className="border-t glass-line px-4 pb-4">
+      <div className="mini-panel overflow-hidden">
+        <div className="flex flex-col gap-2 border-b glass-line px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2">
+            <BrainCircuit className="h-4 w-4 text-violet-300" />
+            <span className="text-xs font-black uppercase tracking-wide text-slate-200">AI Technical Overlay</span>
+          </div>
+          <span className={`w-fit rounded px-2 py-1 text-[11px] font-black ${analysis.strategy.iconTone}`}>
+            {analysis.strategy.name} {analysis.strategy.confidence}%
+          </span>
+        </div>
+
+        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)_220px]">
+          <div>
+            <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Strategy Read</div>
+            <div className="text-sm font-black text-slate-100">{analysis.strategy.reason}</div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+              <OverlayInfo label="Trigger" value={analysis.strategy.trigger} tone="text-emerald-300" />
+              <OverlayInfo label="Invalidation" value={analysis.strategy.invalidation} tone="text-rose-300" />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Fib Zones</span>
+              <span className="text-[10px] font-black uppercase text-violet-300">Golden pocket</span>
+            </div>
+            <div className="space-y-2">
+              {focusFibLevels.map((level) => (
+                <div className="grid grid-cols-[58px_1fr_auto] items-center gap-3 text-xs" key={`${level.label}-${level.value}`}>
+                  <span className="font-black text-slate-500">{level.label}</span>
+                  <div className="h-1.5 rounded-full bg-slate-800">
+                    <div className="h-1.5 rounded-full bg-violet-400" style={{ width: level.width }} />
+                  </div>
+                  <span className={`font-black ${level.tone}`}>{level.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-xs xl:grid-cols-1">
+            <OverlayInfo label="Trend" value={`${analysis.trendOverlay.direction} ${analysis.trendOverlay.slope}`} tone="text-amber-300" />
+            <OverlayInfo label="Strength" value={`${analysis.trendOverlay.strength}%`} tone="text-violet-300" />
+            <OverlayInfo label="Resistance" value={resistance} tone="text-rose-300" />
+            <OverlayInfo label="Support" value={support} tone="text-cyan-300" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OverlayInfo({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-slate-800 bg-white/[0.025] px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-wide text-slate-600">{label}</div>
+      <div className={`mt-1 text-xs font-black leading-5 ${tone}`}>{value}</div>
+    </div>
+  );
+}
+
 function AiTechnicalMap({ analysis }: { analysis: ChartAiAnalysis }) {
   const resistance = analysis.levels.find((level) => level.label === "Res 1")?.value ?? analysis.levels[0]?.value ?? "R";
   const support = analysis.levels.find((level) => level.label === "Sup 1")?.value ?? analysis.levels.at(-1)?.value ?? "S";
-  const isBullish = analysis.biasTone === "bullish";
-  const trendPath = isBullish ? "M18 108 L156 64" : "M18 48 L156 92";
+  const isBullish = analysis.trendOverlay.direction === "ascending" || analysis.biasTone === "bullish";
+  const isSideways = analysis.trendOverlay.direction === "sideways";
+  const trendPath = isSideways ? "M18 78 L156 74" : isBullish ? "M18 108 L156 64" : "M18 48 L156 92";
   const pricePath = isBullish
     ? "M18 104 C38 94 47 105 64 92 S93 88 110 76 S137 68 160 58"
     : "M18 58 C38 46 47 66 64 57 S93 91 110 76 S137 69 160 82";
+  const fibLines = analysis.fibLevels.filter((level) => [0.382, 0.5, 0.618].includes(level.ratio));
+  const strategyLabel = analysis.strategy.code === "EWT_FIB"
+    ? "EWT"
+    : analysis.strategy.code === "CTI"
+      ? "CTI"
+      : analysis.strategy.code === "TRENDLINE_RETEST"
+        ? "TL"
+        : "S/R";
 
   return (
     <svg className="h-full min-h-[150px] w-full" viewBox="0 0 180 150" aria-hidden="true">
@@ -404,11 +523,31 @@ function AiTechnicalMap({ analysis }: { analysis: ChartAiAnalysis }) {
       </defs>
       <path d="M0 34 H180" stroke="#fb7185" strokeDasharray="5 5" strokeWidth="1.5" opacity="0.75" />
       <path d="M0 88 H180" stroke="#22d3ee" strokeDasharray="5 5" strokeWidth="1.5" opacity="0.75" />
-      <path d={trendPath} stroke={isBullish ? "#00e5a8" : "#fb7185"} strokeWidth="2.5" strokeLinecap="round" />
+      {fibLines.map((level, index) => {
+        const y = 52 + index * 13;
+
+        return (
+          <g key={`${level.label}-${level.value}`}>
+            <path d={`M20 ${y} H166`} stroke="#8b5cf6" strokeDasharray="3 6" strokeWidth="1" opacity="0.58" />
+            <text x="126" y={y - 3} fill="#c4b5fd" fontSize="8" fontWeight="800">{level.label}</text>
+          </g>
+        );
+      })}
+      <path d={trendPath} stroke={isSideways ? "#f59e0b" : isBullish ? "#00e5a8" : "#fb7185"} strokeWidth="2.5" strokeLinecap="round" />
       <path d={pricePath} fill="none" stroke="#00e5a8" strokeWidth="3" strokeLinecap="round" />
       <path d={`${pricePath} L160 128 L18 128 Z`} fill="url(#ai-map-fill)" />
-      <circle cx="156" cy={isBullish ? "64" : "92"} r="4" fill={isBullish ? "#00e5a8" : "#fb7185"} />
+      <circle cx="156" cy={isSideways ? "74" : isBullish ? "64" : "92"} r="4" fill={isSideways ? "#f59e0b" : isBullish ? "#00e5a8" : "#fb7185"} />
       <circle cx="110" cy="76" r="4" fill="#22d3ee" />
+      <rect x="128" y="116" width="40" height="18" rx="5" fill="rgba(139,92,246,0.18)" stroke="rgba(196,181,253,0.35)" />
+      <text x="139" y="128" fill="#c4b5fd" fontSize="10" fontWeight="900">{strategyLabel}</text>
+      {analysis.strategy.code === "EWT_FIB" ? (
+        <>
+          <text x="22" y="112" fill="#c4b5fd" fontSize="9" fontWeight="900">1</text>
+          <text x="60" y="96" fill="#c4b5fd" fontSize="9" fontWeight="900">2</text>
+          <text x="106" y="80" fill="#c4b5fd" fontSize="9" fontWeight="900">3</text>
+          <text x="144" y="64" fill="#c4b5fd" fontSize="9" fontWeight="900">5</text>
+        </>
+      ) : null}
       <text x="10" y="28" fill="#fb7185" fontSize="10" fontWeight="800">R {resistance}</text>
       <text x="10" y="102" fill="#22d3ee" fontSize="10" fontWeight="800">S {support}</text>
     </svg>
@@ -690,16 +829,12 @@ function getChartAiAnalysis(rawSymbol: string): ChartAiAnalysis {
   const knownAnalysis = chartAiAnalyses[pair];
 
   if (knownAnalysis) {
-    return {
-      ...knownAnalysis,
-      symbol,
-    };
+    return hydrateChartAiPreset(symbol, knownAnalysis);
   }
 
   const base = getBaseAsset(pair);
 
-  return {
-    symbol,
+  return hydrateChartAiPreset(symbol, {
     pair,
     timeframe: "15m",
     bias: `Neutral On ${base}`,
@@ -728,6 +863,80 @@ function getChartAiAnalysis(rawSymbol: string): ChartAiAnalysis {
         iconTone: "bg-slate-300/10 text-slate-200",
       },
     ],
+  });
+}
+
+function hydrateChartAiPreset(symbol: string, analysis: ChartAiPreset): ChartAiAnalysis {
+  const resistance = analysis.levels.find((level) => level.label === "Res 1")?.value ?? "Auto";
+  const support = analysis.levels.find((level) => level.label === "Sup 1")?.value ?? "Auto";
+
+  return {
+    ...analysis,
+    symbol,
+    fibLevels: analysis.fibLevels ?? getFallbackFibLevels(analysis.levels),
+    trendOverlay: analysis.trendOverlay ?? getFallbackTrendOverlay(analysis.biasTone),
+    strategy: analysis.strategy ?? getFallbackStrategy({ pair: analysis.pair, biasTone: analysis.biasTone, resistance, support }),
+  };
+}
+
+function getFallbackFibLevels(levels: AiLevel[]): AiFibLevel[] {
+  const resistance = levels.find((level) => level.label === "Res 1")?.value ?? "Auto";
+  const price = levels.find((level) => level.label === "Price")?.value ?? "Live";
+  const support = levels.find((level) => level.label === "Sup 1")?.value ?? "Auto";
+
+  return [
+    { label: "0%", value: resistance, ratio: 0, width: "82%", tone: "text-cyan-300" },
+    { label: "38.2%", value: resistance, ratio: 0.382, width: "68%", tone: "text-cyan-300" },
+    { label: "50%", value: price, ratio: 0.5, width: "56%", tone: "text-violet-300" },
+    { label: "61.8%", value: support, ratio: 0.618, width: "46%", tone: "text-violet-300" },
+    { label: "78.6%", value: support, ratio: 0.786, width: "34%", tone: "text-amber-300" },
+    { label: "100%", value: support, ratio: 1, width: "24%", tone: "text-amber-300" },
+  ];
+}
+
+function getFallbackTrendOverlay(biasTone: BiasTone): AiTrendOverlay {
+  if (biasTone === "bullish") {
+    return { direction: "ascending", start: "Auto", end: "Live", slope: "+0.80%", strength: 72 };
+  }
+
+  if (biasTone === "bearish") {
+    return { direction: "descending", start: "Auto", end: "Live", slope: "-0.80%", strength: 72 };
+  }
+
+  return { direction: "sideways", start: "Auto", end: "Live", slope: "+0.00%", strength: 58 };
+}
+
+function getFallbackStrategy({
+  pair,
+  biasTone,
+  resistance,
+  support,
+}: {
+  pair: string;
+  biasTone: BiasTone;
+  resistance: string;
+  support: string;
+}): AiStrategyRecommendation {
+  if (biasTone === "neutral") {
+    return {
+      code: "CTI",
+      name: "CTI Rotation",
+      confidence: 64,
+      reason: `${pair} is balanced, so CTI rotation is the cleaner fallback until live candle structure confirms expansion.`,
+      trigger: `Fade only near ${support} or ${resistance}`,
+      invalidation: "Stop after a strong range break",
+      iconTone: "bg-cyan-300/10 text-cyan-200",
+    };
+  }
+
+  return {
+    code: "EWT_FIB",
+    name: "EWT + Fibonacci",
+    confidence: 70,
+    reason: `${pair} has a directional fallback read, so wave structure plus Fibonacci zones is preferred until live analysis updates.`,
+    trigger: biasTone === "bearish" ? `Reject near ${resistance}` : `Hold above ${support}`,
+    invalidation: biasTone === "bearish" ? `Invalid above ${resistance}` : `Invalid below ${support}`,
+    iconTone: "bg-violet-300/10 text-violet-200",
   };
 }
 
@@ -747,7 +956,7 @@ const fallbackAiLevels: AiLevel[] = [
   { label: "Sup 2", value: "Auto", width: "32%", tone: "text-cyan-300", bar: "bg-cyan-400" },
 ];
 
-const chartAiAnalyses: Record<string, Omit<ChartAiAnalysis, "symbol">> = {
+const chartAiAnalyses: Record<string, ChartAiPreset> = {
   ETHUSDT: {
     pair: "ETHUSDT",
     timeframe: "15m",
