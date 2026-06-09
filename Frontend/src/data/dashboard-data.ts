@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   BarChart3,
   Bell,
+  Bot,
   Brain,
   ClipboardList,
   Code2,
@@ -37,9 +38,11 @@ export const navItems: NavItem[] = [
   { id: "on-chain", label: "On-Chain Intelligence", icon: Activity, expandable: true },
   { id: "smart-money", label: "Smart Money", icon: Users, badge: "NEW" },
   { id: "ai-signals", label: "AI Trade Signals", icon: Sparkles },
+  { id: "ai-copilot", label: "AI Copilot", icon: Bot, badge: "BETA" },
   { id: "chart-analysis", label: "Chart Analysis", icon: BarChart3 },
   { id: "news-sentiment", label: "News & Sentiment", icon: Newspaper },
   { id: "portfolio", label: "Portfolio", icon: Wallet, expandable: true },
+  { id: "performance", label: "Performance", icon: Gauge, badge: "AI" },
   { id: "alerts", label: "Alerts", icon: Bell, expandable: true },
   { id: "reports", label: "Reports", icon: LineChart },
   { id: "api-access", label: "API Access", icon: KeyRound },
@@ -71,6 +74,11 @@ export const moduleMeta: Record<ModuleId, { kicker: string; title: string; subti
     title: "AI Trade Signals",
     subtitle: "Review high-confidence signals with entries, invalidation, risk, and agent reasoning.",
   },
+  "ai-copilot": {
+    kicker: "Conversational crypto command center",
+    title: "Nexoris AI Copilot",
+    subtitle: "Ask about coins, whale activity, chart structure, alerts, and market risk in one focused workspace.",
+  },
   "chart-analysis": {
     kicker: "Technical analysis workspace",
     title: "Chart Analysis",
@@ -85,6 +93,11 @@ export const moduleMeta: Record<ModuleId, { kicker: string; title: string; subti
     kicker: "Position and risk control",
     title: "Portfolio",
     subtitle: "Review holdings, allocation, exposure, PnL, and AI risk notes for your account.",
+  },
+  performance: {
+    kicker: "Trader performance analytics",
+    title: "Performance Tracker",
+    subtitle: "Track win rate, RRR, profit factor, recovery, Sharpe ratio, drawdown, and AI strategy quality.",
   },
   alerts: {
     kicker: "Rules and notification center",
@@ -136,6 +149,12 @@ export const moduleKpis: Record<Exclude<ModuleId, "dashboard">, Kpi[]> = {
     { label: "Avg R:R", value: "2.8x", sub: "Risk reward profile", tone: "cyan", icon: Gauge },
     { label: "Invalidations", value: "4", sub: "Stops triggered today", tone: "rose", icon: Shield },
   ],
+  "ai-copilot": [
+    { label: "Context Sources", value: "7", sub: "Charts, wallets, alerts", tone: "violet", icon: Brain },
+    { label: "Market Read", value: "Live", sub: "Ollama-backed responses", tone: "green", icon: Bot },
+    { label: "Risk Guard", value: "On", sub: "Setup and invalidation checks", tone: "cyan", icon: Shield },
+    { label: "Avg Response", value: "4.8s", sub: "Cloud model route", tone: "amber", icon: Gauge },
+  ],
   "chart-analysis": [
     { label: "Charts Watched", value: "84", sub: "Auto technical scan", tone: "cyan", icon: BarChart3 },
     { label: "Breakouts", value: "12", sub: "Volume confirmed", tone: "green", icon: TrendingUp },
@@ -153,6 +172,12 @@ export const moduleKpis: Record<Exclude<ModuleId, "dashboard">, Kpi[]> = {
     { label: "Open Positions", value: "12", sub: "8 spot, 4 watch-only", tone: "cyan", icon: ClipboardList },
     { label: "Risk Score", value: "42", sub: "Moderate exposure", tone: "amber", icon: Shield },
     { label: "AI Suggestions", value: "7", sub: "Rebalance and hedge notes", tone: "violet", icon: Brain },
+  ],
+  performance: [
+    { label: "Win Rate", value: "64.7%", sub: "22 wins from 34 trades", tone: "green", icon: Gauge },
+    { label: "Avg RRR", value: "2.35R", sub: "Reward versus risk", tone: "cyan", icon: TrendingUp },
+    { label: "Profit Factor", value: "1.82", sub: "Gross profit / gross loss", tone: "violet", icon: PieChart },
+    { label: "Sharpe Ratio", value: "1.14", sub: "Risk-adjusted returns", tone: "amber", icon: LineChart },
   ],
   alerts: [
     { label: "Active Rules", value: "26", sub: "Whales, TA, sentiment", tone: "cyan", icon: Bell },

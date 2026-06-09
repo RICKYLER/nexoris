@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Maximize2, Minus, Settings, Wifi, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { BrainCircuit, Gauge, LineChart, Maximize2, Minus, Search, Shield, TrendingDown, TrendingUp, X } from "lucide-react";
 
 type TradingTab = "positions" | "orders" | "order-history" | "balance-history" | "trading-journal";
+type BiasTone = "bullish" | "bearish" | "neutral";
+type AnalysisStatus = "loading" | "ready" | "error";
 
 type PositionRow = {
   id: string;
@@ -26,16 +29,48 @@ type OrderRow = {
   status: string;
 };
 
+type AiLevel = {
+  label: string;
+  value: string;
+  width: string;
+  tone: string;
+  bar: string;
+};
+
+type AiPlaybookItem = {
+  label: string;
+  value: string;
+  iconTone: string;
+};
+
+type ChartAiAnalysis = {
+  symbol: string;
+  pair: string;
+  timeframe: string;
+  bias: string;
+  biasTone: BiasTone;
+  confidence: number;
+  trendline: string;
+  invalidation: string;
+  momentum: string;
+  momentumMeta: string;
+  note: string;
+  levels: AiLevel[];
+  playbook: AiPlaybookItem[];
+};
+
+const defaultTradingViewSymbol = "BINANCE:ETHUSDT";
+
 const tradingViewConfig = {
   autosize: true,
-  symbol: "BINANCE:ETHUSDT",
+  symbol: defaultTradingViewSymbol,
   interval: "15",
   timezone: "Etc/UTC",
   theme: "dark",
   style: "1",
   locale: "en",
   enable_publishing: false,
-  allow_symbol_change: true,
+  allow_symbol_change: false,
   calendar: false,
   details: false,
   hide_side_toolbar: false,
@@ -50,22 +85,63 @@ const tradingViewConfig = {
   support_host: "https://www.tradingview.com",
 };
 
+const tradingViewScriptSrc = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+
 export function ChartPanel() {
   const widgetRef = useRef<HTMLDivElement | null>(null);
-  const [widgetKey, setWidgetKey] = useState(0);
-  const [activeRange, setActiveRange] = useState("15m");
+  const [activeSymbol, setActiveSymbol] = useState(defaultTradingViewSymbol);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<TradingTab>("positions");
   const [positions, setPositions] = useState<PositionRow[]>(initialPositions);
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
-
-  const config = useMemo(
+  const fallbackAnalysis = useMemo(() => getChartAiAnalysis(activeSymbol), [activeSymbol]);
+  const [analysis, setAnalysis] = useState<ChartAiAnalysis>(fallbackAnalysis);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus>("loading");
+  const widgetConfig = useMemo(
     () => ({
       ...tradingViewConfig,
-      interval: activeRange.replace("m", ""),
+      symbol: activeSymbol,
     }),
-    [activeRange],
+    [activeSymbol],
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    setAnalysis(fallbackAnalysis);
+    setAnalysisStatus("loading");
+
+    fetch("/api/chart-analysis", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ symbol: activeSymbol, interval: "15m" }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Chart analysis request failed");
+        }
+
+        return response.json() as Promise<ChartAiAnalysis>;
+      })
+      .then((nextAnalysis) => {
+        setAnalysis(nextAnalysis);
+        setAnalysisStatus("ready");
+      })
+      .catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+
+        setAnalysisStatus("error");
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [activeSymbol, fallbackAnalysis]);
 
   useEffect(() => {
     const container = widgetRef.current;
@@ -74,69 +150,36 @@ export function ChartPanel() {
       return;
     }
 
-    container.innerHTML = "";
+    container.replaceChildren();
 
     const widgetSlot = document.createElement("div");
     widgetSlot.className = "tradingview-widget-container__widget";
+    widgetSlot.id = "tradingview-ethusdt";
     widgetSlot.style.height = "100%";
     widgetSlot.style.width = "100%";
 
+    const attribution = document.createElement("div");
+    attribution.className = "tradingview-widget-copyright";
+    attribution.innerHTML = '<a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank"><span>Track all markets on TradingView</span></a>';
+    attribution.style.display = "none";
+
     const script = document.createElement("script");
     script.async = true;
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.src = tradingViewScriptSrc;
     script.type = "text/javascript";
-    script.innerHTML = JSON.stringify(config);
+    script.textContent = JSON.stringify(widgetConfig);
 
     container.appendChild(widgetSlot);
+    container.appendChild(attribution);
     container.appendChild(script);
 
     return () => {
-      container.innerHTML = "";
+      container.replaceChildren();
     };
-  }, [config, widgetKey]);
+  }, [widgetConfig]);
 
   return (
     <section className="panel mb-4 overflow-hidden">
-      <div className="flex flex-col gap-3 border-b glass-line px-4 py-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <EthereumIcon />
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-lg font-black text-white">Ethereum / Tether (ETHUSDT)</h2>
-              <span className="rounded bg-emerald-400/10 px-2 py-1 text-xs font-black text-emerald-300">BINANCE</span>
-              <span className="flex items-center gap-1 rounded bg-emerald-400/10 px-2 py-1 text-[10px] font-black uppercase text-emerald-300">
-                <Wifi className="h-3 w-3" />
-                TradingView Live
-              </span>
-            </div>
-            <div className="mt-1 text-xs text-slate-500">Embedded TradingView Advanced Chart widget with exchange market data.</div>
-          </div>
-        </div>
-
-        <div className="hide-scrollbar flex items-center gap-2 overflow-x-auto">
-          {["1m", "5m", "15m", "1H", "4H", "1D"].map((item) => (
-            <button
-              className={`h-9 min-w-10 rounded-md px-3 text-xs font-black transition ${
-                item === activeRange ? "bg-violet-600 text-white" : "text-slate-400 hover:bg-white/[0.04] hover:text-white"
-              }`}
-              key={item}
-              onClick={() => setActiveRange(item)}
-              type="button"
-            >
-              {item}
-            </button>
-          ))}
-          <button
-            className="grid h-9 w-9 place-items-center rounded-md text-slate-400 hover:bg-white/[0.04] hover:text-white"
-            onClick={() => setWidgetKey((current) => current + 1)}
-            type="button"
-            aria-label="Reload TradingView chart"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
       <div className="relative h-[560px] min-h-[560px] overflow-hidden bg-[#070d1a]">
         <div
           ref={widgetRef}
@@ -144,6 +187,8 @@ export function ChartPanel() {
           style={{ height: "100%", width: "100%" }}
         />
       </div>
+
+      <AiChartIntelligence analysis={analysis} analysisStatus={analysisStatus} onSymbolChange={setActiveSymbol} />
 
       <TradingTerminal
         activeTab={activeTab}
@@ -156,6 +201,217 @@ export function ChartPanel() {
         positions={positions}
       />
     </section>
+  );
+}
+
+function AiChartIntelligence({
+  analysis,
+  analysisStatus,
+  onSymbolChange,
+}: {
+  analysis: ChartAiAnalysis;
+  analysisStatus: AnalysisStatus;
+  onSymbolChange: (symbol: string) => void;
+}) {
+  return (
+    <section className="border-t glass-line bg-[#080d18]">
+      <ChartAiSymbolControl activeSymbol={analysis.symbol} analysisStatus={analysisStatus} onSymbolChange={onSymbolChange} />
+
+      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <div className="grid gap-3 md:grid-cols-3">
+          <AiSignalCard
+            icon={analysis.biasTone === "bullish" ? TrendingUp : TrendingDown}
+            label="AI Bias"
+            value={analysis.bias}
+            meta={`${analysis.confidence}% confidence`}
+            tone={analysis.biasTone === "bullish" ? "green" : analysis.biasTone === "bearish" ? "rose" : "amber"}
+          />
+          <AiSignalCard
+            icon={LineChart}
+            label="Trendline"
+            value={analysis.trendline}
+            meta={analysis.invalidation}
+            tone="amber"
+          />
+          <AiSignalCard
+            icon={Gauge}
+            label="Momentum"
+            value={analysis.momentum}
+            meta={analysis.momentumMeta}
+            tone="cyan"
+          />
+        </div>
+
+        <div className="mini-panel overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b glass-line px-4 py-3">
+            <div className="flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-violet-300" />
+              <span className="text-xs font-black uppercase tracking-wide text-slate-200">AI Technical Map</span>
+            </div>
+            <span className="rounded border border-rose-300/20 bg-rose-300/10 px-2 py-1 text-[11px] font-black text-rose-200">
+              {analysis.pair} {analysis.timeframe}
+            </span>
+          </div>
+
+          <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_180px]">
+            <div className="space-y-3 text-xs">
+              {analysis.levels.map((level) => (
+                <div className="grid grid-cols-[88px_1fr_auto] items-center gap-3" key={level.label}>
+                  <span className="font-black uppercase text-slate-500">{level.label}</span>
+                  <div className="h-1.5 rounded-full bg-slate-800">
+                    <div className={`h-1.5 rounded-full ${level.bar}`} style={{ width: level.width }} />
+                  </div>
+                  <span className={`font-black ${level.tone}`}>{level.value}</span>
+                </div>
+              ))}
+
+              <div className="rounded-md border border-slate-800 bg-white/[0.025] p-3 leading-5 text-slate-400">
+                {analysis.note}
+              </div>
+            </div>
+
+            <div className="relative min-h-[150px] overflow-hidden rounded-md border border-slate-800 bg-[#070d1a]">
+              <AiTechnicalMap analysis={analysis} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 border-t glass-line px-4 pb-4 pt-0 md:grid-cols-3">
+        {analysis.playbook.map((item) => (
+          <div className="mini-panel flex items-start gap-3 p-3" key={item.label}>
+            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${item.iconTone}`}>
+              <Shield className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-wide text-slate-400">{item.label}</div>
+              <div className="mt-1 text-sm font-bold leading-5 text-slate-200">{item.value}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ChartAiSymbolControl({
+  activeSymbol,
+  analysisStatus,
+  onSymbolChange,
+}: {
+  activeSymbol: string;
+  analysisStatus: AnalysisStatus;
+  onSymbolChange: (symbol: string) => void;
+}) {
+  const [draftSymbol, setDraftSymbol] = useState(activeSymbol);
+
+  useEffect(() => {
+    setDraftSymbol(activeSymbol);
+  }, [activeSymbol]);
+
+  return (
+    <form
+      className="flex flex-col gap-3 border-b glass-line px-4 py-3 md:flex-row md:items-center md:justify-between"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSymbolChange(normalizeTradingViewSymbol(draftSymbol));
+      }}
+    >
+      <div>
+        <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-200">
+          <BrainCircuit className="h-4 w-4 text-violet-300" />
+          AI Chart Sync
+        </div>
+        <div className="mt-1 text-xs text-slate-500">
+          {analysisStatus === "loading" ? "Fetching candles, calculating TA, and asking Ollama..." : null}
+          {analysisStatus === "ready" ? "Live candles, TA levels, and AI explanation are synced." : null}
+          {analysisStatus === "error" ? "Using local fallback. Check Binance/Ollama connection." : null}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 gap-2 md:min-w-[360px]">
+        <label className="sr-only" htmlFor="ai-chart-symbol">TradingView symbol</label>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            className="h-10 w-full rounded-md border border-slate-800 bg-[#070d1a] pl-9 pr-3 text-sm font-bold text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-violet-400/60"
+            id="ai-chart-symbol"
+            onChange={(event) => setDraftSymbol(event.target.value)}
+            placeholder="BTCUSD, ETHUSDT, SOLUSDT"
+            spellCheck={false}
+            value={draftSymbol}
+          />
+        </div>
+        <button className="h-10 rounded-md bg-violet-600 px-4 text-xs font-black text-white transition hover:bg-violet-500" type="submit">
+          Analyze
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AiSignalCard({
+  icon,
+  label,
+  value,
+  meta,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  meta: string;
+  tone: "green" | "rose" | "amber" | "cyan";
+}) {
+  const Icon = icon;
+  const tones = {
+    green: "border-emerald-300/20 bg-emerald-300/10 text-emerald-200",
+    rose: "border-rose-300/20 bg-rose-300/10 text-rose-200",
+    amber: "border-amber-300/20 bg-amber-300/10 text-amber-200",
+    cyan: "border-cyan-300/20 bg-cyan-300/10 text-cyan-200",
+  };
+
+  return (
+    <article className="mini-panel p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="text-xs font-black uppercase tracking-wide text-slate-500">{label}</div>
+        <div className={`grid h-8 w-8 place-items-center rounded-md border ${tones[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <div className="text-sm font-black text-slate-100">{value}</div>
+      <div className="mt-1 text-xs text-slate-500">{meta}</div>
+    </article>
+  );
+}
+
+function AiTechnicalMap({ analysis }: { analysis: ChartAiAnalysis }) {
+  const resistance = analysis.levels.find((level) => level.label === "Res 1")?.value ?? analysis.levels[0]?.value ?? "R";
+  const support = analysis.levels.find((level) => level.label === "Sup 1")?.value ?? analysis.levels.at(-1)?.value ?? "S";
+  const isBullish = analysis.biasTone === "bullish";
+  const trendPath = isBullish ? "M18 108 L156 64" : "M18 48 L156 92";
+  const pricePath = isBullish
+    ? "M18 104 C38 94 47 105 64 92 S93 88 110 76 S137 68 160 58"
+    : "M18 58 C38 46 47 66 64 57 S93 91 110 76 S137 69 160 82";
+
+  return (
+    <svg className="h-full min-h-[150px] w-full" viewBox="0 0 180 150" aria-hidden="true">
+      <defs>
+        <linearGradient id="ai-map-fill" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d="M0 34 H180" stroke="#fb7185" strokeDasharray="5 5" strokeWidth="1.5" opacity="0.75" />
+      <path d="M0 88 H180" stroke="#22d3ee" strokeDasharray="5 5" strokeWidth="1.5" opacity="0.75" />
+      <path d={trendPath} stroke={isBullish ? "#00e5a8" : "#fb7185"} strokeWidth="2.5" strokeLinecap="round" />
+      <path d={pricePath} fill="none" stroke="#00e5a8" strokeWidth="3" strokeLinecap="round" />
+      <path d={`${pricePath} L160 128 L18 128 Z`} fill="url(#ai-map-fill)" />
+      <circle cx="156" cy={isBullish ? "64" : "92"} r="4" fill={isBullish ? "#00e5a8" : "#fb7185"} />
+      <circle cx="110" cy="76" r="4" fill="#22d3ee" />
+      <text x="10" y="28" fill="#fb7185" fontSize="10" fontWeight="800">R {resistance}</text>
+      <text x="10" y="102" fill="#22d3ee" fontSize="10" fontWeight="800">S {support}</text>
+    </svg>
   );
 }
 
@@ -410,20 +666,233 @@ function WalletIcon() {
   );
 }
 
-function EthereumIcon() {
-  return (
-    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#627eea] shadow-[0_0_18px_rgba(98,126,234,0.35)]" aria-hidden="true">
-      <svg className="h-7 w-7" viewBox="0 0 64 64" role="img">
-        <path d="M32 4 15 32 32 24 49 32 32 4Z" fill="#ffffff" fillOpacity="0.94" />
-        <path d="M32 4v20l17 8L32 4Z" fill="#dbe4ff" fillOpacity="0.78" />
-        <path d="M15 36 32 46 49 36 32 60 15 36Z" fill="#ffffff" fillOpacity="0.95" />
-        <path d="M32 46v14l17-24-17 10Z" fill="#dbe4ff" fillOpacity="0.78" />
-        <path d="M15 32 32 24 49 32 32 42 15 32Z" fill="#b9c7ff" />
-        <path d="M32 24v18l17-10-17-8Z" fill="#8fa4ff" />
-      </svg>
-    </div>
-  );
+function normalizeTradingViewSymbol(rawSymbol: string) {
+  const cleanedSymbol = rawSymbol.trim().toUpperCase().replace(/\s+/g, "").replace(/\//g, "");
+
+  if (!cleanedSymbol) {
+    return defaultTradingViewSymbol;
+  }
+
+  if (cleanedSymbol.includes(":")) {
+    return cleanedSymbol;
+  }
+
+  if (cleanedSymbol.endsWith("USD") && !cleanedSymbol.endsWith("USDT") && !cleanedSymbol.endsWith("USDC")) {
+    return `CRYPTO:${cleanedSymbol}`;
+  }
+
+  return `BINANCE:${cleanedSymbol}`;
 }
+
+function getChartAiAnalysis(rawSymbol: string): ChartAiAnalysis {
+  const symbol = normalizeTradingViewSymbol(rawSymbol);
+  const pair = symbol.includes(":") ? symbol.split(":").slice(1).join(":") : symbol;
+  const knownAnalysis = chartAiAnalyses[pair];
+
+  if (knownAnalysis) {
+    return {
+      ...knownAnalysis,
+      symbol,
+    };
+  }
+
+  const base = getBaseAsset(pair);
+
+  return {
+    symbol,
+    pair,
+    timeframe: "15m",
+    bias: `Neutral On ${base}`,
+    biasTone: "neutral",
+    confidence: 61,
+    trendline: "Structure Not Confirmed",
+    invalidation: "Waiting for clean breakout",
+    momentum: "Mixed Momentum",
+    momentumMeta: "Needs more volume confirmation",
+    note: `${pair} is loaded on TradingView. AI needs live OHLCV and indicator data before marking automated support, resistance, and trend bias with high confidence.`,
+    levels: fallbackAiLevels,
+    playbook: [
+      {
+        label: "Confirmation Needed",
+        value: "Wait for a strong candle close outside the recent range before treating the move as directional.",
+        iconTone: "bg-amber-300/10 text-amber-200",
+      },
+      {
+        label: "Breakout Plan",
+        value: "Mark the latest swing high as resistance and the latest higher low as support.",
+        iconTone: "bg-cyan-300/10 text-cyan-200",
+      },
+      {
+        label: "Risk Control",
+        value: "Avoid signal entries while volume remains below average.",
+        iconTone: "bg-slate-300/10 text-slate-200",
+      },
+    ],
+  };
+}
+
+function getBaseAsset(pair: string) {
+  const quote = quoteAssets.find((asset) => pair.endsWith(asset) && pair.length > asset.length);
+
+  return quote ? pair.slice(0, -quote.length) : pair;
+}
+
+const quoteAssets = ["USDT", "USDC", "FDUSD", "BUSD", "USD", "BTC", "ETH", "BNB", "EUR", "TRY"];
+
+const fallbackAiLevels: AiLevel[] = [
+  { label: "Res 2", value: "Auto", width: "82%", tone: "text-rose-300", bar: "bg-rose-400" },
+  { label: "Res 1", value: "Auto", width: "70%", tone: "text-rose-300", bar: "bg-rose-400" },
+  { label: "Price", value: "Live", width: "56%", tone: "text-emerald-300", bar: "bg-emerald-400" },
+  { label: "Sup 1", value: "Auto", width: "44%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+  { label: "Sup 2", value: "Auto", width: "32%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+];
+
+const chartAiAnalyses: Record<string, Omit<ChartAiAnalysis, "symbol">> = {
+  ETHUSDT: {
+    pair: "ETHUSDT",
+    timeframe: "15m",
+    bias: "Bearish Below $1,720",
+    biasTone: "bearish",
+    confidence: 78,
+    trendline: "Lower-High Structure",
+    invalidation: "Breakout invalidation: $1,720",
+    momentum: "Recovery Losing Speed",
+    momentumMeta: "Volume fade after bounce",
+    note: "Sell pressure remains active while price trades below the descending trendline. A clean close above $1,720 shifts the read back to neutral.",
+    levels: [
+      { label: "Res 2", value: "$1,760", width: "88%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Res 1", value: "$1,720", width: "76%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Price", value: "$1,684", width: "62%", tone: "text-emerald-300", bar: "bg-emerald-400" },
+      { label: "Sup 1", value: "$1,640", width: "48%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+      { label: "Sup 2", value: "$1,600", width: "35%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+    ],
+    playbook: [
+      {
+        label: "Bearish Trigger",
+        value: "Reject near $1,720 with weak volume, then watch for a move back into $1,640 support.",
+        iconTone: "bg-rose-300/10 text-rose-200",
+      },
+      {
+        label: "Bullish Invalidation",
+        value: "A 15m close above $1,720 breaks the active lower-high trendline.",
+        iconTone: "bg-emerald-300/10 text-emerald-200",
+      },
+      {
+        label: "Risk Zone",
+        value: "Avoid chasing between $1,680 and $1,720 until price confirms direction.",
+        iconTone: "bg-amber-300/10 text-amber-200",
+      },
+    ],
+  },
+  BTCUSD: {
+    pair: "BTCUSD",
+    timeframe: "15m",
+    bias: "Bullish Above $63,000",
+    biasTone: "bullish",
+    confidence: 74,
+    trendline: "Higher-Low Recovery",
+    invalidation: "Invalid below $62,000",
+    momentum: "Bid Strength Returning",
+    momentumMeta: "Higher lows after selloff",
+    note: "BTC is recovering with higher lows while price holds above $63,000. A break over $64,200 confirms continuation; losing $62,000 turns the setup neutral.",
+    levels: [
+      { label: "Res 2", value: "$65,000", width: "88%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Res 1", value: "$64,200", width: "76%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Price", value: "$63,400", width: "64%", tone: "text-emerald-300", bar: "bg-emerald-400" },
+      { label: "Sup 1", value: "$62,000", width: "48%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+      { label: "Sup 2", value: "$60,800", width: "36%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+    ],
+    playbook: [
+      {
+        label: "Bullish Trigger",
+        value: "A clean reclaim of $64,200 opens a continuation attempt into $65,000.",
+        iconTone: "bg-emerald-300/10 text-emerald-200",
+      },
+      {
+        label: "Bearish Invalidation",
+        value: "A close below $62,000 breaks the higher-low recovery structure.",
+        iconTone: "bg-rose-300/10 text-rose-200",
+      },
+      {
+        label: "Risk Zone",
+        value: "Do not chase the middle of the range between $63,000 and $64,200.",
+        iconTone: "bg-amber-300/10 text-amber-200",
+      },
+    ],
+  },
+  BTCUSDT: {
+    pair: "BTCUSDT",
+    timeframe: "15m",
+    bias: "Bullish Above $63,000",
+    biasTone: "bullish",
+    confidence: 74,
+    trendline: "Higher-Low Recovery",
+    invalidation: "Invalid below $62,000",
+    momentum: "Bid Strength Returning",
+    momentumMeta: "Higher lows after selloff",
+    note: "BTC is recovering with higher lows while price holds above $63,000. A break over $64,200 confirms continuation; losing $62,000 turns the setup neutral.",
+    levels: [
+      { label: "Res 2", value: "$65,000", width: "88%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Res 1", value: "$64,200", width: "76%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Price", value: "$63,400", width: "64%", tone: "text-emerald-300", bar: "bg-emerald-400" },
+      { label: "Sup 1", value: "$62,000", width: "48%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+      { label: "Sup 2", value: "$60,800", width: "36%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+    ],
+    playbook: [
+      {
+        label: "Bullish Trigger",
+        value: "A clean reclaim of $64,200 opens a continuation attempt into $65,000.",
+        iconTone: "bg-emerald-300/10 text-emerald-200",
+      },
+      {
+        label: "Bearish Invalidation",
+        value: "A close below $62,000 breaks the higher-low recovery structure.",
+        iconTone: "bg-rose-300/10 text-rose-200",
+      },
+      {
+        label: "Risk Zone",
+        value: "Do not chase the middle of the range between $63,000 and $64,200.",
+        iconTone: "bg-amber-300/10 text-amber-200",
+      },
+    ],
+  },
+  SOLUSDT: {
+    pair: "SOLUSDT",
+    timeframe: "15m",
+    bias: "Bullish Above $168",
+    biasTone: "bullish",
+    confidence: 72,
+    trendline: "Ascending Support",
+    invalidation: "Invalid below $160",
+    momentum: "Momentum Expanding",
+    momentumMeta: "Breakout volume improving",
+    note: "SOL remains constructive while buyers defend the rising support line. A push through $178 improves odds of continuation toward $190.",
+    levels: [
+      { label: "Res 2", value: "$190", width: "88%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Res 1", value: "$178", width: "76%", tone: "text-rose-300", bar: "bg-rose-400" },
+      { label: "Price", value: "$171", width: "62%", tone: "text-emerald-300", bar: "bg-emerald-400" },
+      { label: "Sup 1", value: "$160", width: "48%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+      { label: "Sup 2", value: "$148", width: "34%", tone: "text-cyan-300", bar: "bg-cyan-400" },
+    ],
+    playbook: [
+      {
+        label: "Bullish Trigger",
+        value: "Hold $168 and break $178 with volume for a continuation setup.",
+        iconTone: "bg-emerald-300/10 text-emerald-200",
+      },
+      {
+        label: "Bearish Invalidation",
+        value: "A close below $160 breaks ascending support.",
+        iconTone: "bg-rose-300/10 text-rose-200",
+      },
+      {
+        label: "Risk Zone",
+        value: "Avoid late longs directly under $178 resistance.",
+        iconTone: "bg-amber-300/10 text-amber-200",
+      },
+    ],
+  },
+};
 
 const initialPositions: PositionRow[] = [
   { id: "pos-eth", pair: "ETHUSDT", side: "Long", size: "2.10 ETH", entry: "$2,641.80", mark: "$2,669.36", pnl: "+$57.88", margin: "$1,027.84" },

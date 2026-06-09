@@ -70,7 +70,11 @@ export function Sidebar({
           <p className="text-xs leading-5 text-slate-400">
             Ask anything about the market, on-chain activity, or specific coins.
           </p>
-          <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-violet-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-violet-500" type="button">
+          <button
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-violet-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-violet-500"
+            onClick={() => onModuleChange("ai-copilot")}
+            type="button"
+          >
             Ask Nexoris AI
             <ArrowUpRight className="h-4 w-4" />
           </button>

@@ -6,9 +6,11 @@ export type ModuleId =
   | "on-chain"
   | "smart-money"
   | "ai-signals"
+  | "ai-copilot"
   | "chart-analysis"
   | "news-sentiment"
   | "portfolio"
+  | "performance"
   | "alerts"
   | "reports"
   | "api-access";
