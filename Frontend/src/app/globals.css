@@ -100,18 +100,12 @@ input {
   display: none;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1279px) {
   .dashboard-shell {
     grid-template-columns: 236px minmax(0, 1fr);
   }
 
   .right-rail {
     grid-column: 2;
-  }
-}
-
-@media (max-width: 1024px) {
-  .dashboard-shell {
-    display: block;
   }
 }

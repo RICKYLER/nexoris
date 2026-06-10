@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BrainCircuit, Gauge, LineChart, Maximize2, Minus, Search, Shield, TrendingDown, TrendingUp, X } from "lucide-react";
+import { MobileOrderCards, MobilePositionCards, MobileTerminalCards } from "../../../mobile/components/trading-terminal-mobile";
 
 type TradingTab = "positions" | "orders" | "order-history" | "balance-history" | "trading-journal";
 type BiasTone = "bullish" | "bearish" | "neutral";
@@ -124,6 +125,7 @@ export function ChartPanel() {
   const widgetRef = useRef<HTMLDivElement | null>(null);
   const [activeSymbol, setActiveSymbol] = useState(defaultTradingViewSymbol);
   const [terminalOpen, setTerminalOpen] = useState(true);
+  const [compactChart, setCompactChart] = useState(false);
   const [activeTab, setActiveTab] = useState<TradingTab>("positions");
   const [positions, setPositions] = useState<PositionRow[]>(initialPositions);
   const [orders, setOrders] = useState<OrderRow[]>(initialOrders);
@@ -134,9 +136,24 @@ export function ChartPanel() {
     () => ({
       ...tradingViewConfig,
       symbol: activeSymbol,
+      hide_side_toolbar: compactChart,
+      hide_top_toolbar: compactChart,
+      hide_legend: compactChart,
     }),
-    [activeSymbol],
+    [activeSymbol, compactChart],
   );
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 640px)");
+    const updateCompactChart = () => setCompactChart(media.matches);
+
+    updateCompactChart();
+    media.addEventListener("change", updateCompactChart);
+
+    return () => {
+      media.removeEventListener("change", updateCompactChart);
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -213,7 +230,7 @@ export function ChartPanel() {
 
   return (
     <section className="panel mb-4 overflow-hidden">
-      <div className="relative h-[560px] min-h-[560px] overflow-hidden bg-[#070d1a]">
+      <div className="relative h-[360px] min-h-[360px] overflow-hidden bg-[#070d1a] sm:h-[460px] sm:min-h-[460px] xl:h-[560px] xl:min-h-[560px]">
         <div
           ref={widgetRef}
           className="tradingview-widget-container h-full w-full"
@@ -250,7 +267,7 @@ function AiChartIntelligence({
     <section className="border-t glass-line bg-[#080d18]">
       <ChartAiSymbolControl activeSymbol={analysis.symbol} analysisStatus={analysisStatus} onSymbolChange={onSymbolChange} />
 
-      <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+      <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
         <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           <AiSignalCard
             icon={analysis.biasTone === "bullish" ? TrendingUp : TrendingDown}
@@ -293,7 +310,7 @@ function AiChartIntelligence({
             </span>
           </div>
 
-          <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="grid gap-4 p-3 sm:p-4 md:grid-cols-[minmax(0,1fr)_180px]">
             <div className="space-y-3 text-xs">
               {analysis.levels.map((level) => (
                 <div className="grid grid-cols-[88px_1fr_auto] items-center gap-3" key={level.label}>
@@ -319,7 +336,7 @@ function AiChartIntelligence({
 
       <AiStrategyOverlay analysis={analysis} />
 
-      <div className="grid gap-3 border-t glass-line px-4 pb-4 pt-0 md:grid-cols-3">
+      <div className="grid gap-3 border-t glass-line px-3 pb-3 pt-0 sm:px-4 sm:pb-4 md:grid-cols-3">
         {analysis.playbook.map((item) => (
           <div className="mini-panel flex items-start gap-3 p-3" key={item.label}>
             <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-md ${item.iconTone}`}>
@@ -434,7 +451,7 @@ function AiStrategyOverlay({ analysis }: { analysis: ChartAiAnalysis }) {
   const support = analysis.levels.find((level) => level.label === "Sup 1")?.value ?? "Auto";
 
   return (
-    <section className="border-t glass-line px-4 pb-4">
+    <section className="border-t glass-line px-3 pb-3 sm:px-4 sm:pb-4">
       <div className="mini-panel overflow-hidden">
         <div className="flex flex-col gap-2 border-b glass-line px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
@@ -446,7 +463,7 @@ function AiStrategyOverlay({ analysis }: { analysis: ChartAiAnalysis }) {
           </span>
         </div>
 
-        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)_220px]">
+        <div className="grid gap-4 p-3 sm:p-4 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)_220px]">
           <div>
             <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Strategy Read</div>
             <div className="text-sm font-black text-slate-100">{analysis.strategy.reason}</div>
@@ -594,7 +611,7 @@ function TradingTerminal({
 
       {open ? (
         <div>
-          <div className="grid gap-3 border-b glass-line px-4 py-4 sm:grid-cols-2 lg:grid-cols-7">
+          <div className="trading-account-strip grid gap-3 border-b glass-line px-4 py-4 sm:grid-cols-2 lg:grid-cols-7">
             {accountStats.map((stat) => (
               <div key={stat.label}>
                 <div className="text-xs font-black text-slate-400">{stat.label}</div>
@@ -645,36 +662,40 @@ function PositionsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[920px] text-left text-sm">
-        <thead className="text-xs uppercase text-slate-500">
-          <tr>
-            {["Pair", "Side", "Size", "Entry", "Mark", "Margin", "Unrealized PnL", "Action"].map((head) => (
-              <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((position) => (
-            <tr className="text-slate-300" key={position.id}>
-              <td className="border-b glass-line px-4 py-3 font-black text-slate-100">{position.pair}</td>
-              <td className={`border-b glass-line px-4 py-3 font-black ${position.side === "Long" ? "text-emerald-300" : "text-rose-300"}`}>{position.side}</td>
-              <td className="border-b glass-line px-4 py-3">{position.size}</td>
-              <td className="border-b glass-line px-4 py-3">{position.entry}</td>
-              <td className="border-b glass-line px-4 py-3">{position.mark}</td>
-              <td className="border-b glass-line px-4 py-3">{position.margin}</td>
-              <td className={`border-b glass-line px-4 py-3 font-black ${position.pnl.startsWith("+") ? "text-emerald-300" : "text-rose-300"}`}>{position.pnl}</td>
-              <td className="border-b glass-line px-4 py-3">
-                <button className="flex items-center gap-1 rounded-md border border-rose-300/25 bg-rose-300/10 px-2.5 py-1.5 text-xs font-black text-rose-200 hover:border-rose-300/50" onClick={() => onClosePosition(position.id)} type="button">
-                  <X className="h-3.5 w-3.5" />
-                  Close
-                </button>
-              </td>
+    <>
+      <MobilePositionCards positions={positions} onClosePosition={onClosePosition} />
+
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[920px] text-left text-sm">
+          <thead className="text-xs uppercase text-slate-500">
+            <tr>
+              {["Pair", "Side", "Size", "Entry", "Mark", "Margin", "Unrealized PnL", "Action"].map((head) => (
+                <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {positions.map((position) => (
+              <tr className="text-slate-300" key={position.id}>
+                <td className="border-b glass-line px-4 py-3 font-black text-slate-100">{position.pair}</td>
+                <td className={`border-b glass-line px-4 py-3 font-black ${position.side === "Long" ? "text-emerald-300" : "text-rose-300"}`}>{position.side}</td>
+                <td className="border-b glass-line px-4 py-3">{position.size}</td>
+                <td className="border-b glass-line px-4 py-3">{position.entry}</td>
+                <td className="border-b glass-line px-4 py-3">{position.mark}</td>
+                <td className="border-b glass-line px-4 py-3">{position.margin}</td>
+                <td className={`border-b glass-line px-4 py-3 font-black ${position.pnl.startsWith("+") ? "text-emerald-300" : "text-rose-300"}`}>{position.pnl}</td>
+                <td className="border-b glass-line px-4 py-3">
+                  <button className="flex items-center gap-1 rounded-md border border-rose-300/25 bg-rose-300/10 px-2.5 py-1.5 text-xs font-black text-rose-200 hover:border-rose-300/50" onClick={() => onClosePosition(position.id)} type="button">
+                    <X className="h-3.5 w-3.5" />
+                    Close
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -690,34 +711,38 @@ function OrdersTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-left text-sm">
-        <thead className="text-xs uppercase text-slate-500">
-          <tr>
-            {["Pair", "Type", "Side", "Price", "Amount", "Status", "Action"].map((head) => (
-              <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((order) => (
-            <tr className="text-slate-300" key={order.id}>
-              <td className="border-b glass-line px-4 py-3 font-black text-slate-100">{order.pair}</td>
-              <td className="border-b glass-line px-4 py-3">{order.type}</td>
-              <td className={`border-b glass-line px-4 py-3 font-black ${order.side === "Buy" ? "text-emerald-300" : "text-rose-300"}`}>{order.side}</td>
-              <td className="border-b glass-line px-4 py-3">{order.price}</td>
-              <td className="border-b glass-line px-4 py-3">{order.amount}</td>
-              <td className="border-b glass-line px-4 py-3 text-violet-300">{order.status}</td>
-              <td className="border-b glass-line px-4 py-3">
-                <button className="rounded-md border border-slate-600 bg-white/[0.03] px-2.5 py-1.5 text-xs font-black text-slate-200 hover:border-rose-300/50 hover:text-rose-200" onClick={() => onCloseOrder(order.id)} type="button">
-                  Cancel
-                </button>
-              </td>
+    <>
+      <MobileOrderCards orders={orders} onCloseOrder={onCloseOrder} />
+
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[860px] text-left text-sm">
+          <thead className="text-xs uppercase text-slate-500">
+            <tr>
+              {["Pair", "Type", "Side", "Price", "Amount", "Status", "Action"].map((head) => (
+                <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <tr className="text-slate-300" key={order.id}>
+                <td className="border-b glass-line px-4 py-3 font-black text-slate-100">{order.pair}</td>
+                <td className="border-b glass-line px-4 py-3">{order.type}</td>
+                <td className={`border-b glass-line px-4 py-3 font-black ${order.side === "Buy" ? "text-emerald-300" : "text-rose-300"}`}>{order.side}</td>
+                <td className="border-b glass-line px-4 py-3">{order.price}</td>
+                <td className="border-b glass-line px-4 py-3">{order.amount}</td>
+                <td className="border-b glass-line px-4 py-3 text-violet-300">{order.status}</td>
+                <td className="border-b glass-line px-4 py-3">
+                  <button className="rounded-md border border-slate-600 bg-white/[0.03] px-2.5 py-1.5 text-xs font-black text-slate-200 hover:border-rose-300/50 hover:text-rose-200" onClick={() => onCloseOrder(order.id)} type="button">
+                    Cancel
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
@@ -762,28 +787,32 @@ function TradingJournalTable() {
 
 function SimpleTerminalTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="text-xs uppercase text-slate-500">
-          <tr>
-            {headers.map((head) => (
-              <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr className="text-slate-300" key={row.join("-")}>
-              {row.map((cell, index) => (
-                <td className={`border-b glass-line px-4 py-3 ${index === 0 ? "text-slate-500" : ""}`} key={`${cell}-${index}`}>
-                  {cell}
-                </td>
+    <>
+      <MobileTerminalCards headers={headers} rows={rows} />
+
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="text-xs uppercase text-slate-500">
+            <tr>
+              {headers.map((head) => (
+                <th className="border-b glass-line px-4 py-3 font-black" key={head}>{head}</th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr className="text-slate-300" key={row.join("-")}>
+                {row.map((cell, index) => (
+                  <td className={`border-b glass-line px-4 py-3 ${index === 0 ? "text-slate-500" : ""}`} key={`${cell}-${index}`}>
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

@@ -13,7 +13,7 @@ export function Sidebar({
   onModuleChange: (moduleId: ModuleId) => void;
 }) {
   return (
-    <aside className="glass-line border-b bg-[#050914]/95 px-4 py-4 lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
+    <aside className="glass-line hidden border-b bg-[#050914]/95 px-4 py-4 lg:sticky lg:top-0 lg:block lg:h-screen lg:border-b-0 lg:border-r">
       <div className="flex items-center gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-md border border-violet-400/30 bg-[#050914]">
           <Image

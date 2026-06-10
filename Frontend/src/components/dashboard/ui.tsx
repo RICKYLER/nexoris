@@ -30,7 +30,7 @@ export function TwoColumn({ children }: { children: ReactNode }) {
 
 export function ModuleKpiGrid({ items }: { items: Kpi[] }) {
   return (
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <section className="mobile-kpi-grid grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {items.map((item) => {
         const Icon = item.icon;
 

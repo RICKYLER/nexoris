@@ -8,7 +8,7 @@ export function RightRail({ activeModule }: { activeModule: ModuleId }) {
   const activeItem = navItems.find((item) => item.id === activeModule) ?? navItems[0];
 
   return (
-    <aside className="right-rail glass-line border-t px-4 pb-5 pt-4 xl:sticky xl:top-0 xl:h-screen xl:overflow-y-auto xl:border-l xl:border-t-0 xl:pb-4">
+    <aside className="right-rail glass-line hidden border-t px-4 pb-5 pt-4 xl:sticky xl:top-0 xl:block xl:h-screen xl:overflow-y-auto xl:border-l xl:border-t-0 xl:pb-4">
       <MarketRegime />
       {activeModule === "dashboard" ? (
         <>

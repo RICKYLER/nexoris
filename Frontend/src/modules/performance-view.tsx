@@ -176,17 +176,17 @@ export function PerformanceView() {
     <ModuleStack>
       <MetricGrid />
 
-      <section className="grid items-start gap-3 lg:grid-cols-[1fr_300px]">
-        <PerformanceChart />
-        <PerformanceAside aiRead={aiRead} aiStatus={aiStatus} onRefresh={refreshAiRead} />
+      <section className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 space-y-3">
+          <PerformanceChart />
+          <StrategyTable />
+          <MonthlyMatrix />
+        </div>
+        <div className="min-w-0 space-y-3">
+          <PerformanceAside aiRead={aiRead} aiStatus={aiStatus} onRefresh={refreshAiRead} />
+          <RecentTrades />
+        </div>
       </section>
-
-      <section className="grid items-start gap-3 lg:grid-cols-[1fr_360px]">
-        <StrategyTable />
-        <RecentTrades />
-      </section>
-
-      <MonthlyMatrix />
     </ModuleStack>
   );
 }

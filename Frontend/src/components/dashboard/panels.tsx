@@ -1,10 +1,11 @@
 import { ArrowUpRight, Gauge, Radar, Shield, Sparkles, TrendingUp, Wallet } from "lucide-react";
 import { alerts, opportunities, smartMoneyRows, statCards } from "@/data/dashboard-data";
 import { CoinBadge, PanelTitle, StatVisual, toneText } from "@/components/dashboard/ui";
+import { MobileSmartMoneyCards } from "../../../mobile/components/smart-money-mobile";
 
 export function StatsGrid() {
   return (
-    <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <section className="stats-grid mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       {statCards.map((stat) => (
         <article className="panel min-h-[132px] p-4" key={stat.label}>
           <div className="mb-2 text-xs font-bold text-slate-400">{stat.label}</div>
@@ -79,7 +80,8 @@ export function SmartMoneyTable() {
         <h2 className="text-sm font-black uppercase tracking-wide text-slate-200">Smart Money Movements</h2>
         <button className="text-xs font-bold text-violet-300" type="button">View all</button>
       </div>
-      <div className="overflow-x-auto">
+      <MobileSmartMoneyCards rows={smartMoneyRows} />
+      <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="text-xs uppercase text-slate-500">
             <tr>
